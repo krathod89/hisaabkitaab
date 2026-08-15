@@ -4,8 +4,8 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { color, radius, space, text } from '../../src/theme';
 import { Card, Icon } from '../../src/components/ui';
-import { useApp, useSession } from '../../src/store';
-import { signOut } from '../../src/auth/session';
+import { useApp } from '../../src/store';
+import { useAuth } from '../../src/auth/AuthProvider';
 import { resetAndReseed } from '../../src/db/seed';
 
 function Item({ icon, label, value, onPress, danger }: { icon: string; label: string; value?: string; onPress?: () => void; danger?: boolean }) {
@@ -22,7 +22,7 @@ export default function Settings() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { mutate } = useApp();
-  const session = useSession();
+  const { user, signOut } = useAuth();
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: color.bg }} contentContainerStyle={{ padding: space.xl, paddingTop: insets.top + 24 }}>
@@ -30,11 +30,11 @@ export default function Settings() {
 
       <Card style={styles.account}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{(session?.name?.[0] ?? 'U').toUpperCase()}</Text>
+          <Text style={styles.avatarText}>{(user?.name?.[0] ?? 'U').toUpperCase()}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={text.bodyStrong}>{session?.name ?? 'Guest'}</Text>
-          <Text style={text.caption}>{session?.email ?? 'Not signed in'}</Text>
+          <Text style={text.bodyStrong}>{user?.name ?? 'Guest'}</Text>
+          <Text style={text.caption}>{user?.email ?? 'Not signed in'}</Text>
         </View>
       </Card>
 
@@ -60,7 +60,7 @@ export default function Settings() {
           }
         />
         <View style={styles.divider} />
-        <Item icon="logout" label="Sign out" danger onPress={() => { signOut(); mutate(() => {}); router.replace('/(auth)/onboarding'); }} />
+        <Item icon="logout" label="Sign out" danger onPress={async () => { await signOut(); mutate(() => {}); router.replace('/(auth)/onboarding'); }} />
       </Card>
 
       <Text style={styles.footer}>HisaabKitaab · Phase 1 (local-only) · v1.0.0</Text>

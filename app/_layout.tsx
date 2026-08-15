@@ -20,6 +20,7 @@ import { MaterialSymbols_400Regular } from '@expo-google-fonts/material-symbols'
 
 import { color } from '../src/theme';
 import { AppProvider } from '../src/store';
+import { AuthProvider } from '../src/auth/AuthProvider';
 import { initDb } from '../src/db/client';
 import { seedIfEmpty } from '../src/db/seed';
 
@@ -52,6 +53,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
+        <AuthProvider>
         <AppProvider>
           <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.bg } }}>
@@ -62,6 +64,7 @@ export default function RootLayout() {
             <Stack.Screen name="bill/[cycleId]" />
           </Stack>
         </AppProvider>
+        </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
