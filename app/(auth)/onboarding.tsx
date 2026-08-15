@@ -45,7 +45,7 @@ export default function Onboarding() {
     >
       {/* Wordmark + tagline */}
       <View style={styles.header}>
-        <Text style={styles.wordmark}>Tally</Text>
+        <Text style={styles.wordmark}>HisaabKitaab</Text>
         <Text style={styles.tagline}>Know what you owe, one tap a day.</Text>
       </View>
 

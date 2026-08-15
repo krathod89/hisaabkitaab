@@ -1,5 +1,5 @@
 /**
- * Core domain types for Tally (Phase 1, single-user).
+ * Core domain types for HisaabKitaab (Phase 1, single-user).
  *
  * Dates: calendar dates are stored as ISO 'YYYY-MM-DD' strings (local day).
  * Timestamps: stored as ISO 8601 strings (Date#toISOString()).

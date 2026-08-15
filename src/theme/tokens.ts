@@ -1,5 +1,5 @@
 /**
- * Design tokens for Tally.
+ * Design tokens for HisaabKitaab.
  *
  * Colors are converted from the handoff's OKLCH values to sRGB hex/rgba,
  * since React Native's color parser does not support oklch(). The source

@@ -1,4 +1,4 @@
-# Tally — Screen implementation contract
+# HisaabKitaab — Screen implementation contract
 
 Read this before editing any screen. The foundation (data, theme, navigation) is
 built and typechecks. Your job: implement ONE screen file to match its design,

@@ -10,7 +10,7 @@ let _db: SQLite.SQLiteDatabase | null = null;
 
 export function getDb(): SQLite.SQLiteDatabase {
   if (!_db) {
-    _db = SQLite.openDatabaseSync('tally.db');
+    _db = SQLite.openDatabaseSync('hisaabkitaab.db');
   }
   return _db;
 }

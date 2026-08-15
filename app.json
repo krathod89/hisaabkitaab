@@ -1,19 +1,19 @@
 {
   "expo": {
-    "name": "tally",
-    "slug": "tally",
+    "name": "HisaabKitaab",
+    "slug": "hisaabkitaab",
     "version": "1.0.0",
-    "scheme": "tally",
+    "scheme": "hisaabkitaab",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tally.app"
+      "bundleIdentifier": "com.hisaabkitaab.app"
     },
     "android": {
-      "package": "com.tally.app",
+      "package": "com.hisaabkitaab.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

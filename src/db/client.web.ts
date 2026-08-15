@@ -17,14 +17,14 @@ import { DDL, SCHEMA_VERSION } from './schema';
 
 type Params = unknown[];
 
-const STORAGE_KEY = 'tally.sqljs.v1';
+const STORAGE_KEY = 'hisaabkitaab.sqljs.v1';
 
 let SQL: SqlJsStatic | null = null;
 let db: Database | null = null;
 
 /**
  * The absolute origin+base the app is served from, derived from the entry
- * bundle's own <script> src (e.g. 'https://user.github.io/tally'). Falls back
+ * bundle's own <script> src (e.g. 'https://user.github.io/hisaabkitaab'). Falls back
  * to the page origin for root-hosted deploys.
  */
 function webBaseUrl(): string {
@@ -118,7 +118,7 @@ export function getDb(): DbLike {
 export async function initDb(): Promise<void> {
   if (db) return;
   if (!SQL) {
-    // Resolve the WASM against the deploy base (e.g. '/tally' on GitHub Pages),
+    // Resolve the WASM against the deploy base (e.g. '/hisaabkitaab' on GitHub Pages),
     // derived from the bundle's own <script> URL so it works whether the site is
     // served from root or a subpath, and regardless of the current route.
     SQL = await initSqlJs({ locateFile: () => `${webBaseUrl()}/sql-wasm.wasm` });

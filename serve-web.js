@@ -61,5 +61,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Tally web build serving on http://localhost:${PORT} (cross-origin isolated)`);
+  console.log(`HisaabKitaab web build serving on http://localhost:${PORT} (cross-origin isolated)`);
 });

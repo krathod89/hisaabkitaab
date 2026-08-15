@@ -63,7 +63,7 @@ export default function Settings() {
         <Item icon="logout" label="Sign out" danger onPress={() => { signOut(); mutate(() => {}); router.replace('/(auth)/onboarding'); }} />
       </Card>
 
-      <Text style={styles.footer}>Tally · Phase 1 (local-only) · v1.0.0</Text>
+      <Text style={styles.footer}>HisaabKitaab · Phase 1 (local-only) · v1.0.0</Text>
     </ScrollView>
   );
 }
