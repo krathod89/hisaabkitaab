@@ -1,24 +1,24 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { color, font, radius, space, text } from '../../src/theme';
 import { PrimaryButton } from '../../src/components/ui';
+import { Icon } from '../../src/components/ui';
 import { useAuth } from '../../src/auth/AuthProvider';
 
 type Mode = 'signin' | 'signup';
-type Stage = 'email' | 'code';
+type Stage = 'email' | 'sent';
 
 export default function Onboarding() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { sendOtp, verifyOtp } = useAuth();
+  const { sendLink } = useAuth();
 
   const [mode, setMode] = useState<Mode>('signin');
   const [stage, setStage] = useState<Stage>('email');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -26,33 +26,21 @@ export default function Onboarding() {
   const isSignup = mode === 'signup';
   const toggleMode = () => setMode((m) => (m === 'signin' ? 'signup' : 'signin'));
 
-  const send = async () => {
+  const submit = async () => {
     setError(null);
     setInfo(null);
     setBusy(true);
-    const { needsCode, error } = await sendOtp(email, isSignup ? name : undefined);
+    const { mode: result, error } = await sendLink(email, isSignup ? name : undefined);
     setBusy(false);
     if (error) return setError(error);
-    if (needsCode) {
-      setStage('code');
-    } else {
-      router.replace('/(tabs)/home'); // local-fallback path (no code needed)
-    }
-  };
-
-  const verify = async () => {
-    setError(null);
-    setBusy(true);
-    const err = await verifyOtp(email, code);
-    setBusy(false);
-    if (err) return setError(err);
-    router.replace('/(tabs)/home');
+    if (result === 'done') router.replace('/(tabs)/home'); // local fallback
+    else setStage('sent');
   };
 
   const resend = async () => {
     setError(null);
-    const { error } = await sendOtp(email, isSignup ? name : undefined);
-    setInfo(error ? null : 'A new code is on its way.');
+    const { error } = await sendLink(email, isSignup ? name : undefined);
+    setInfo(error ? null : 'Sent again — check your inbox.');
     if (error) setError(error);
   };
 
@@ -99,10 +87,11 @@ export default function Onboarding() {
               autoCapitalize="none"
               autoCorrect={false}
               inputMode="email"
+              onSubmitEditing={submit}
             />
             {error && <Text style={styles.error}>{error}</Text>}
-            <PrimaryButton label={busy ? 'Sending…' : 'Email me a code'} onPress={send} disabled={busy} style={{ marginTop: 2 }} />
-            <Text style={styles.hint}>We'll email you a 6-digit code — no password to remember.</Text>
+            <PrimaryButton label={busy ? 'Sending…' : 'Email me a sign-in link'} onPress={submit} disabled={busy} style={{ marginTop: 2 }} />
+            <Text style={styles.hint}>We'll email you a secure link — no password to remember.</Text>
           </View>
 
           <View style={styles.dividerRow}>
@@ -131,27 +120,22 @@ export default function Onboarding() {
           </View>
         </>
       ) : (
-        <View style={styles.fields}>
-          <Text style={styles.codeTitle}>Enter your code</Text>
-          <Text style={styles.codeSub}>We emailed a 6-digit code to {email}.</Text>
-          <TextInput
-            style={[styles.input, styles.codeInput]}
-            value={code}
-            onChangeText={(t) => setCode(t.replace(/[^0-9]/g, '').slice(0, 6))}
-            placeholder="••••••"
-            placeholderTextColor={color.textMuted}
-            keyboardType="number-pad"
-            inputMode="numeric"
-            maxLength={6}
-            autoFocus
-          />
-          {error && <Text style={styles.error}>{error}</Text>}
-          <PrimaryButton label={busy ? 'Verifying…' : 'Verify & sign in'} onPress={verify} disabled={busy || code.length < 6} style={{ marginTop: 2 }} />
-          <View style={styles.codeActions}>
-            <Text style={styles.footerAction} onPress={resend}>Resend code</Text>
-            <Text style={styles.footerAction} onPress={() => { setStage('email'); setCode(''); setError(null); }}>Change email</Text>
+        <View style={styles.sentWrap}>
+          <View style={styles.sentIcon}>
+            <Icon name="mark_email_read" size={30} colorHex={color.accent} />
           </View>
+          <Text style={styles.sentTitle}>Check your email</Text>
+          <Text style={styles.sentSub}>
+            We sent a sign-in link to{'\n'}
+            <Text style={styles.sentEmail}>{email}</Text>
+          </Text>
+          <Text style={styles.sentHint}>Tap the link in that email to finish signing in. You can close this tab afterward.</Text>
+          {error && <Text style={styles.error}>{error}</Text>}
           {info && <Text style={styles.info}>{info}</Text>}
+          <View style={styles.sentActions}>
+            <Text style={styles.footerAction} onPress={resend}>Resend link</Text>
+            <Text style={styles.footerAction} onPress={() => { setStage('email'); setError(null); setInfo(null); }}>Change email</Text>
+          </View>
         </View>
       )}
     </ScrollView>
@@ -170,13 +154,9 @@ const styles = StyleSheet.create({
   segmentLabelActive: { color: color.textPrimary },
   fields: { gap: 12 },
   input: { backgroundColor: color.card, borderWidth: 1, borderColor: color.border, borderRadius: radius.lg, paddingVertical: 14, paddingHorizontal: 16, fontSize: 14.5, fontFamily: font.bodyRegular, color: color.text32 },
-  codeInput: { textAlign: 'center', letterSpacing: 8, fontSize: 22, fontFamily: font.displayBold },
   hint: { ...text.captionMuted, textAlign: 'center', marginTop: 2 },
-  error: { ...text.caption, color: '#b3261e' },
+  error: { ...text.caption, color: '#b3261e', textAlign: 'center', marginTop: 8 },
   info: { ...text.caption, color: color.greenText, textAlign: 'center', marginTop: 10 },
-  codeTitle: { fontFamily: font.displayBold, fontSize: 20, color: color.textPrimary, textAlign: 'center' },
-  codeSub: { ...text.caption, textAlign: 'center', marginBottom: 4 },
-  codeActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 },
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 22, marginBottom: 18 },
   dividerLine: { flex: 1, height: 1, backgroundColor: color.divider },
   dividerText: { fontFamily: font.bodyRegular, fontSize: 11.5, color: color.textSecondary },
@@ -189,4 +169,11 @@ const styles = StyleSheet.create({
   footer: { alignItems: 'center' },
   footerText: { ...text.caption },
   footerAction: { color: color.accent, fontFamily: font.bodySemiBold },
+  sentWrap: { alignItems: 'center', paddingTop: 12, gap: 6 },
+  sentIcon: { width: 64, height: 64, borderRadius: 20, backgroundColor: color.accentSoftBg, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  sentTitle: { fontFamily: font.displayBold, fontSize: 21, color: color.textPrimary },
+  sentSub: { ...text.caption, textAlign: 'center', lineHeight: 20 },
+  sentEmail: { fontFamily: font.bodySemiBold, color: color.textPrimary },
+  sentHint: { ...text.captionMuted, textAlign: 'center', marginTop: 8, lineHeight: 18, paddingHorizontal: 10 },
+  sentActions: { flexDirection: 'row', gap: 24, marginTop: 18 },
 });

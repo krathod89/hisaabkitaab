@@ -1,7 +1,17 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../supabase/client';
 import * as local from './session';
+
+/** Where the magic-link email should send the user back to. */
+function redirectTo(): string | undefined {
+  if (Platform.OS === 'web') {
+    return typeof window !== 'undefined' ? window.location.origin : undefined;
+  }
+  return Linking.createURL('/');
+}
 
 /**
  * Authentication layer.
@@ -18,8 +28,8 @@ export interface AuthUser {
 }
 
 interface SendResult {
-  /** true when the caller should collect a 6-digit code next (Supabase path). */
-  needsCode: boolean;
+  /** 'link' = magic-link email sent (cloud); 'done' = signed in already (local stub). */
+  mode: 'link' | 'done';
   error: string | null;
 }
 
@@ -28,8 +38,7 @@ interface AuthState {
   initializing: boolean;
   /** Whether real cloud auth is active (vs. the local stub). */
   cloud: boolean;
-  sendOtp: (email: string, name?: string) => Promise<SendResult>;
-  verifyOtp: (email: string, token: string) => Promise<string | null>;
+  sendLink: (email: string, name?: string) => Promise<SendResult>;
   signOut: () => Promise<void>;
 }
 
@@ -72,36 +81,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [cloud]);
 
-  const sendOtp = useCallback<AuthState['sendOtp']>(
+  const sendLink = useCallback<AuthState['sendLink']>(
     async (email, name) => {
       const clean = email.trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) {
-        return { needsCode: false, error: 'Enter a valid email address.' };
+        return { mode: 'link', error: 'Enter a valid email address.' };
       }
       if (cloud && supabase) {
+        // Free-tier Supabase can't customise the OTP email, so we use the
+        // default magic-link email: the user taps the link to sign in.
         const { error } = await supabase.auth.signInWithOtp({
           email: clean,
-          options: { shouldCreateUser: true, data: name?.trim() ? { name: name.trim() } : undefined },
+          options: {
+            shouldCreateUser: true,
+            emailRedirectTo: redirectTo(),
+            data: name?.trim() ? { name: name.trim() } : undefined,
+          },
         });
-        return { needsCode: !error, error: error?.message ?? null };
+        return { mode: 'link', error: error?.message ?? null };
       }
-      // Local stub: sign in immediately, no code step.
+      // Local stub: sign in immediately, no email needed.
       const s = local.signIn(clean, name?.trim() || '');
       setUser({ id: s.email, email: s.email, name: s.name });
-      return { needsCode: false, error: null };
-    },
-    [cloud],
-  );
-
-  const verifyOtp = useCallback<AuthState['verifyOtp']>(
-    async (email, token) => {
-      if (!(cloud && supabase)) return null; // not used in local mode
-      const { error } = await supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
-        token: token.trim(),
-        type: 'email',
-      });
-      return error?.message ?? null;
+      return { mode: 'done', error: null };
     },
     [cloud],
   );
@@ -116,8 +118,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [cloud]);
 
   const value = useMemo<AuthState>(
-    () => ({ user, initializing, cloud, sendOtp, verifyOtp, signOut }),
-    [user, initializing, cloud, sendOtp, verifyOtp, signOut],
+    () => ({ user, initializing, cloud, sendLink, signOut }),
+    [user, initializing, cloud, sendLink, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
