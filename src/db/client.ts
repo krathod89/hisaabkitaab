@@ -1,10 +1,10 @@
 import * as SQLite from 'expo-sqlite';
-import { DDL, SCHEMA_VERSION } from './schema';
+import { DDL, SCHEMA_VERSION, SYNC_TABLES } from './schema';
+import { uuid } from '../lib/uuid';
 
 /**
  * Single shared SQLite handle. expo-sqlite's synchronous API is used
- * throughout — Phase 1 is local-only and the working set is tiny, so the
- * simplicity of sync calls outweighs any benefit of the async API.
+ * throughout — the working set is tiny and the cloud sync happens out of band.
  */
 let _db: SQLite.SQLiteDatabase | null = null;
 
@@ -15,21 +15,28 @@ export function getDb(): SQLite.SQLiteDatabase {
   return _db;
 }
 
-/** Create tables and record the schema version. Idempotent. */
+/** Create tables. On a schema-version bump, drop & recreate (cache is disposable). */
 export function initDb(): void {
   const db = getDb();
+  const row = db.getFirstSync<{ user_version: number }>('PRAGMA user_version');
+  const version = row?.user_version ?? 0;
+  if (version !== SCHEMA_VERSION) {
+    for (const t of [...SYNC_TABLES].reverse()) db.execSync(`DROP TABLE IF EXISTS ${t};`);
+    db.execSync('DROP TABLE IF EXISTS kv;');
+  }
   db.execSync(DDL);
   db.execSync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
 }
 
-/** Generate a sortable-ish unique id without pulling in a uuid dependency. */
-export function newId(prefix = ''): string {
-  const rand = Math.random().toString(36).slice(2, 10);
-  return `${prefix}${Date.now().toString(36)}${rand}`;
+/** Client-generated UUID id (prefix kept in the signature for call-site clarity). */
+export function newId(_prefix = ''): string {
+  return uuid();
 }
 
-/** DEV helper: drop all rows (keeps schema). Used before reseeding. */
+/** Wipe all syncable rows (keeps kv). Used on account switch / reseed. */
 export function clearAll(): void {
   const db = getDb();
-  db.execSync(`DELETE FROM entries; DELETE FROM price_versions; DELETE FROM cycles; DELETE FROM items;`);
+  db.execSync(
+    `DELETE FROM entries; DELETE FROM price_versions; DELETE FROM cycles; DELETE FROM items; DELETE FROM lists;`,
+  );
 }

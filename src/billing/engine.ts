@@ -1,22 +1,20 @@
-import type { BillLine, BillSummary, Item } from '../models/types';
+import type { BillLine, BillSummary, Cycle, Item } from '../models/types';
 import { listItems, priceAt, currentPrice, getItem } from '../repositories/items';
-import { entriesForCycle } from '../repositories/entries';
-import { ensureCycle, cycleProgress, lockCycle } from '../repositories/cycles';
-import { isLoggedToday } from '../repositories/entries';
+import { entriesForPeriod, isLoggedToday } from '../repositories/entries';
+import { getCycle, currentCycle, cycleProgress, lockCycle } from '../repositories/cycles';
 
 /**
- * Build a bill/running-total for a cycle.
+ * Build a bill/running-total for a cycle (by cycle id).
  *
  * Each entry is priced at the version active on its own `day`, so a mid-cycle
- * rate change bills earlier days at the old price and later days at the new one
- * — the PRD's versioned-pricing requirement. For an open cycle this is the
- * live running total; for a locked cycle it reproduces the frozen figure.
+ * rate change bills earlier days at the old price and later days at the new one.
+ * For an open cycle this is the live running total; for a locked cycle it
+ * reproduces the frozen figure.
  */
 export function buildBill(cycleId: string): BillSummary {
-  const cycle = ensureCycle(cycleId);
-  const entries = entriesForCycle(cycleId);
+  const cycle: Cycle = getCycle(cycleId) ?? currentCycle();
+  const entries = entriesForPeriod(cycle.period);
 
-  // Group entries by item.
   const byItem = new Map<string, { qty: number; subtotal: number }>();
   for (const e of entries) {
     const acc = byItem.get(e.itemId) ?? { qty: 0, subtotal: 0 };
@@ -25,11 +23,8 @@ export function buildBill(cycleId: string): BillSummary {
     byItem.set(e.itemId, acc);
   }
 
-  // Include all active items (so not-yet-logged items still show as ¤0 rows,
-  // matching the Bill screen's dimmed "Not logged today" row).
   const items = listItems(false);
   const seen = new Set(items.map((i) => i.id));
-  // Also include archived items that nonetheless have entries this cycle.
   for (const itemId of byItem.keys()) {
     if (!seen.has(itemId)) {
       const it = getItem(itemId);
@@ -48,7 +43,6 @@ export function buildBill(cycleId: string): BillSummary {
     };
   });
 
-  // Logged items first (by subtotal desc), then un-logged.
   lines.sort((a, b) => {
     if ((a.quantity > 0) !== (b.quantity > 0)) return a.quantity > 0 ? -1 : 1;
     return b.subtotal - a.subtotal;

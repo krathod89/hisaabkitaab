@@ -21,8 +21,10 @@ import { MaterialSymbols_400Regular } from '@expo-google-fonts/material-symbols'
 import { color } from '../src/theme';
 import { AppProvider } from '../src/store';
 import { AuthProvider } from '../src/auth/AuthProvider';
+import { SyncProvider } from '../src/sync/SyncProvider';
 import { initDb } from '../src/db/client';
 import { seedIfEmpty } from '../src/db/seed';
+import { isSupabaseConfigured } from '../src/supabase/client';
 
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
@@ -41,7 +43,8 @@ export default function RootLayout() {
     // loads its WASM), so await it before seeding either way.
     (async () => {
       await initDb();
-      seedIfEmpty();
+      // Only seed demo data in local-only mode; cloud mode gets data from sync.
+      if (!isSupabaseConfigured) seedIfEmpty();
       setDbReady(true);
     })();
   }, []);
@@ -55,6 +58,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
         <AppProvider>
+        <SyncProvider>
           <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.bg } }}>
             <Stack.Screen name="index" />
@@ -63,6 +67,7 @@ export default function RootLayout() {
             <Stack.Screen name="item/edit" options={{ presentation: 'modal' }} />
             <Stack.Screen name="bill/[cycleId]" />
           </Stack>
+        </SyncProvider>
         </AppProvider>
         </AuthProvider>
       </SafeAreaProvider>

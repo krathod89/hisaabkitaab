@@ -59,7 +59,7 @@ export function seedIfEmpty(): void {
     defaultQty: 1,
   });
 
-  ensureCycle(toCycleId(prevDate));
+  const prevCycle = ensureCycle(toCycleId(prevDate));
 
   // Prior month: milk daily, water every 3rd day, paper on weekdays.
   for (let d = 1; d <= prevDaysInMonth; d++) {
@@ -69,7 +69,7 @@ export function seedIfEmpty(): void {
     const dow = new Date(py, pm - 1, d).getDay();
     if (dow >= 1 && dow <= 5) logEntry({ itemId: paper, quantity: 1, day });
   }
-  closeCycle(toCycleId(prevDate));
+  closeCycle(prevCycle.id);
 
   // Current month up to (but not including) today, so "today" is un-logged and
   // the Home screen invites the first tap.

@@ -1,98 +1,114 @@
 import { getDb, newId } from '../db/client';
 import type { Entry } from '../models/types';
 import { toCycleId, toDayString } from '../lib/date';
+import { getSetting } from '../auth/session';
+import { ensureActiveList } from './lists';
 import { ensureCycle } from './cycles';
 
 interface EntryRow {
   id: string;
   item_id: string;
+  list_id: string;
   quantity: number;
   day: string;
   logged_at: string;
-  cycle_id: string;
+  period: string;
   note: string | null;
+  created_by: string | null;
 }
 
 const mapEntry = (r: EntryRow): Entry => ({
   id: r.id,
   itemId: r.item_id,
+  listId: r.list_id,
   quantity: r.quantity,
   day: r.day,
   loggedAt: r.logged_at,
-  cycleId: r.cycle_id,
+  period: r.period,
   note: r.note,
+  createdBy: r.created_by,
 });
 
 export interface LogInput {
   itemId: string;
   quantity: number;
-  day?: string; // defaults to today
+  day?: string;
   note?: string | null;
 }
 
 /** Record a consumption entry. Refuses to write into a locked cycle. */
 export function logEntry(input: LogInput): Entry {
+  const listId = ensureActiveList();
   const day = input.day ?? toDayString();
-  const cycleId = toCycleId(new Date(day));
-  const cycle = ensureCycle(cycleId);
-  if (cycle.status === 'locked') {
-    throw new Error(`Cannot log into locked cycle ${cycleId}`);
-  }
-  const id = newId('ent_');
+  const period = toCycleId(new Date(day));
+  const cycle = ensureCycle(period);
+  if (cycle.status === 'locked') throw new Error(`Cannot log into locked cycle ${period}`);
+
+  const id = newId();
   const now = new Date().toISOString();
+  const createdBy = getSetting('current_user_id');
   getDb().runSync(
-    `INSERT INTO entries (id, item_id, quantity, day, logged_at, cycle_id, note)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO entries (id, item_id, list_id, quantity, day, logged_at, period, note, created_by, updated_at, deleted, pending)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)`,
     id,
     input.itemId,
+    listId,
     input.quantity,
     day,
     now,
-    cycleId,
+    period,
     input.note ?? null,
+    createdBy,
+    now,
   );
-  return { id, itemId: input.itemId, quantity: input.quantity, day, loggedAt: now, cycleId, note: input.note ?? null };
+  return { id, itemId: input.itemId, listId, quantity: input.quantity, day, loggedAt: now, period, note: input.note ?? null, createdBy };
 }
 
 export function updateEntry(id: string, quantity: number): void {
-  getDb().runSync(`UPDATE entries SET quantity = ? WHERE id = ?`, quantity, id);
+  getDb().runSync(
+    `UPDATE entries SET quantity = ?, updated_at = ?, pending = 1 WHERE id = ?`,
+    quantity,
+    new Date().toISOString(),
+    id,
+  );
 }
 
 export function deleteEntry(id: string): void {
-  getDb().runSync(`DELETE FROM entries WHERE id = ?`, id);
+  getDb().runSync(
+    `UPDATE entries SET deleted = 1, updated_at = ?, pending = 1 WHERE id = ?`,
+    new Date().toISOString(),
+    id,
+  );
 }
 
-export function entriesForCycle(cycleId: string): Entry[] {
-  return getDb()
-    .getAllSync<EntryRow>(`SELECT * FROM entries WHERE cycle_id = ? ORDER BY day, logged_at`, cycleId)
-    .map(mapEntry);
-}
-
-export function entriesForItemInCycle(itemId: string, cycleId: string): Entry[] {
+/** Entries for a period ('YYYY-MM') on the active list. */
+export function entriesForPeriod(period: string): Entry[] {
+  const listId = ensureActiveList();
   return getDb()
     .getAllSync<EntryRow>(
-      `SELECT * FROM entries WHERE item_id = ? AND cycle_id = ? ORDER BY day, logged_at`,
-      itemId,
-      cycleId,
+      `SELECT * FROM entries WHERE list_id = ? AND period = ? AND deleted = 0 ORDER BY day, logged_at`,
+      listId,
+      period,
     )
     .map(mapEntry);
 }
 
-/** True if the item has at least one entry dated today. */
+/** True if the item has at least one (non-deleted) entry dated today. */
 export function isLoggedToday(itemId: string): boolean {
-  const today = toDayString();
   const row = getDb().getFirstSync<{ n: number }>(
-    `SELECT COUNT(*) AS n FROM entries WHERE item_id = ? AND day = ?`,
+    `SELECT COUNT(*) AS n FROM entries WHERE item_id = ? AND day = ? AND deleted = 0`,
     itemId,
-    today,
+    toDayString(),
   );
   return (row?.n ?? 0) > 0;
 }
 
-/** Any entry logged today, across all items (for the "logged today" streak/reminder). */
+/** Any entry logged today on the active list. */
 export function hasAnyEntryToday(): boolean {
+  const listId = ensureActiveList();
   const row = getDb().getFirstSync<{ n: number }>(
-    `SELECT COUNT(*) AS n FROM entries WHERE day = ?`,
+    `SELECT COUNT(*) AS n FROM entries WHERE list_id = ? AND day = ? AND deleted = 0`,
+    listId,
     toDayString(),
   );
   return (row?.n ?? 0) > 0;

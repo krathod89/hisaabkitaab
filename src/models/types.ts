@@ -26,8 +26,20 @@ export const UNIT_SUFFIX: Record<Unit, string> = {
   custom: 'unit',
 };
 
+/** A tracking list. Each user owns at least one; items/entries hang off it. */
+export interface List {
+  id: string;
+  ownerId: string | null;
+  name: string;
+  currency: string;
+  cycleType: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Item {
   id: string;
+  listId: string;
   name: string;
   unit: Unit;
   customUnit: string | null; // label when unit === 'custom'
@@ -37,31 +49,38 @@ export interface Item {
   archived: boolean;
   sortOrder: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 /** Versioned price. Past entries bill at the price active when they were logged. */
 export interface PriceVersion {
   id: string;
   itemId: string;
+  listId: string;
   pricePerUnit: number;
   effectiveFrom: string; // 'YYYY-MM-DD'
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface Entry {
   id: string;
   itemId: string;
+  listId: string;
   quantity: number;
   day: string; // 'YYYY-MM-DD' — the consumption day
   loggedAt: string; // ISO timestamp
-  cycleId: string; // owning cycle (calendar month)
+  period: string; // owning cycle period 'YYYY-MM'
   note: string | null;
+  createdBy: string | null;
 }
 
 export type CycleStatus = 'open' | 'locked';
 
 export interface Cycle {
-  id: string; // 'YYYY-MM'
+  id: string; // uuid
+  listId: string;
+  period: string; // 'YYYY-MM'
   label: string; // e.g. 'August 2026'
   startDate: string; // 'YYYY-MM-01'
   endDate: string; // 'YYYY-MM-<lastDay>'

@@ -13,7 +13,8 @@
  * a preview). Native builds get real on-device SQLite.
  */
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
-import { DDL, SCHEMA_VERSION } from './schema';
+import { DDL, SCHEMA_VERSION, SYNC_TABLES } from './schema';
+import { uuid } from '../lib/uuid';
 
 type Params = unknown[];
 
@@ -125,18 +126,25 @@ export async function initDb(): Promise<void> {
   }
   const saved = restore();
   db = saved ? new SQL.Database(saved) : new SQL.Database();
+
+  // Drop & recreate on a schema-version bump (the cache is disposable).
+  const res = db.exec('PRAGMA user_version');
+  const version = (res[0]?.values?.[0]?.[0] as number) ?? 0;
+  if (version !== SCHEMA_VERSION) {
+    for (const t of [...SYNC_TABLES].reverse()) db.run(`DROP TABLE IF EXISTS ${t};`);
+    db.run('DROP TABLE IF EXISTS kv;');
+  }
   db.run(DDL);
   db.run(`PRAGMA user_version = ${SCHEMA_VERSION};`);
   persist();
 }
 
-export function newId(prefix = ''): string {
-  const rand = Math.random().toString(36).slice(2, 10);
-  return `${prefix}${Date.now().toString(36)}${rand}`;
+export function newId(_prefix = ''): string {
+  return uuid();
 }
 
 export function clearAll(): void {
   getDb().execSync(
-    `DELETE FROM entries; DELETE FROM price_versions; DELETE FROM cycles; DELETE FROM items;`,
+    `DELETE FROM entries; DELETE FROM price_versions; DELETE FROM cycles; DELETE FROM items; DELETE FROM lists;`,
   );
 }

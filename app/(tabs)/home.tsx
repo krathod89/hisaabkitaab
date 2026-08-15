@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { useApp, useItems, useBill } from '../../src/store';
-import { logEntry, entriesForCycle } from '../../src/repositories/entries';
+import { logEntry, entriesForPeriod } from '../../src/repositories/entries';
 import { currentPrice } from '../../src/repositories/items';
 import { formatMoney, formatUnitPrice, formatQty } from '../../src/lib/currency';
 import { UNIT_SUFFIX, type Item, type Unit } from '../../src/models/types';
@@ -38,8 +38,8 @@ function shortUnit(item: Item): string {
 }
 
 /** Consecutive days (ending today) with at least one entry, within the cycle. */
-function computeStreak(cycleId: string): number {
-  const days = new Set(entriesForCycle(cycleId).map((e) => e.day));
+function computeStreak(period: string): number {
+  const days = new Set(entriesForPeriod(period).map((e) => e.day));
   let streak = 0;
   const d = new Date();
   while (streak < 366 && days.has(toDayString(d))) {
@@ -64,9 +64,9 @@ export default function Home() {
   const loggedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const streak = useMemo(
-    () => computeStreak(cycle.id),
+    () => computeStreak(cycle.period),
     // grandTotal changes on each log, keeping the streak fresh.
-    [cycle.id, grandTotal],
+    [cycle.period, grandTotal],
   );
 
   const qtyFor = useCallback(

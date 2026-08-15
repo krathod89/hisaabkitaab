@@ -1,9 +1,12 @@
-import { getDb } from '../db/client';
+import { getDb, newId } from '../db/client';
 import type { Cycle, CycleStatus } from '../models/types';
 import { cycleLabel, monthBounds, parseDay, toCycleId } from '../lib/date';
+import { ensureActiveList } from './lists';
 
 interface CycleRow {
   id: string;
+  list_id: string;
+  period: string;
   label: string;
   start_date: string;
   end_date: string;
@@ -14,6 +17,8 @@ interface CycleRow {
 
 const mapCycle = (r: CycleRow): Cycle => ({
   id: r.id,
+  listId: r.list_id,
+  period: r.period,
   label: r.label,
   startDate: r.start_date,
   endDate: r.end_date,
@@ -22,53 +27,61 @@ const mapCycle = (r: CycleRow): Cycle => ({
   generatedAt: r.generated_at,
 });
 
-/** Fetch a cycle, creating the (open) calendar-month cycle if missing. */
-export function ensureCycle(cycleId: string): Cycle {
+/** Fetch (or create) the open cycle for a period ('YYYY-MM') on the active list. */
+export function ensureCycle(period: string): Cycle {
   const db = getDb();
-  const existing = db.getFirstSync<CycleRow>(`SELECT * FROM cycles WHERE id = ?`, cycleId);
+  const listId = ensureActiveList();
+  const existing = db.getFirstSync<CycleRow>(
+    `SELECT * FROM cycles WHERE list_id = ? AND period = ? AND deleted = 0`,
+    listId,
+    period,
+  );
   if (existing) return mapCycle(existing);
 
-  const [y, m] = cycleId.split('-').map(Number);
+  const [y, m] = period.split('-').map(Number);
   const { start, end } = monthBounds(new Date(y, m - 1, 1));
+  const id = newId();
   db.runSync(
-    `INSERT INTO cycles (id, label, start_date, end_date, status, grand_total, generated_at)
-     VALUES (?, ?, ?, ?, 'open', NULL, NULL)`,
-    cycleId,
-    cycleLabel(cycleId),
+    `INSERT INTO cycles (id, list_id, period, label, start_date, end_date, status, grand_total, generated_at, updated_at, deleted, pending)
+     VALUES (?, ?, ?, ?, ?, ?, 'open', NULL, NULL, ?, 0, 1)`,
+    id,
+    listId,
+    period,
+    cycleLabel(period),
     start,
     end,
+    new Date().toISOString(),
   );
-  return mapCycle(db.getFirstSync<CycleRow>(`SELECT * FROM cycles WHERE id = ?`, cycleId)!);
+  return mapCycle(db.getFirstSync<CycleRow>(`SELECT * FROM cycles WHERE id = ?`, id)!);
 }
 
 export function currentCycle(): Cycle {
   return ensureCycle(toCycleId());
 }
 
-export function getCycle(cycleId: string): Cycle | null {
-  const row = getDb().getFirstSync<CycleRow>(`SELECT * FROM cycles WHERE id = ?`, cycleId);
+export function getCycle(id: string): Cycle | null {
+  const row = getDb().getFirstSync<CycleRow>(`SELECT * FROM cycles WHERE id = ? AND deleted = 0`, id);
   return row ? mapCycle(row) : null;
 }
 
-export function listCycles(): Cycle[] {
-  return getDb()
-    .getAllSync<CycleRow>(`SELECT * FROM cycles ORDER BY id DESC`)
-    .map(mapCycle);
-}
-
 export function listLockedCycles(): Cycle[] {
+  const listId = ensureActiveList();
   return getDb()
-    .getAllSync<CycleRow>(`SELECT * FROM cycles WHERE status = 'locked' ORDER BY id DESC`)
+    .getAllSync<CycleRow>(
+      `SELECT * FROM cycles WHERE list_id = ? AND status = 'locked' AND deleted = 0 ORDER BY period DESC`,
+      listId,
+    )
     .map(mapCycle);
 }
 
 /** Freeze a cycle at a computed grand total. */
-export function lockCycle(cycleId: string, grandTotal: number): void {
+export function lockCycle(id: string, grandTotal: number): void {
   getDb().runSync(
-    `UPDATE cycles SET status = 'locked', grand_total = ?, generated_at = ? WHERE id = ?`,
+    `UPDATE cycles SET status = 'locked', grand_total = ?, generated_at = ?, updated_at = ?, pending = 1 WHERE id = ?`,
     grandTotal,
     new Date().toISOString(),
-    cycleId,
+    new Date().toISOString(),
+    id,
   );
 }
 
