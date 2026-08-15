@@ -31,9 +31,6 @@
       "expo-font",
       "expo-sharing",
       "@react-native-community/datetimepicker"
-    ],
-    "experiments": {
-      "baseUrl": "/tally"
-    }
+    ]
   }
 }
